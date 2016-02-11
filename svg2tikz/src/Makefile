@@ -10,7 +10,7 @@ CC = gcc
 CFLAGS = -std=c99
 
 # name for executable
-EXE = svg2tikz
+EXE = ../svg2tikz
 
 # space-separated list of header files
 HDRS = process.h totikz.h
