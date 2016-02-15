@@ -194,7 +194,7 @@ void pop(NODE** stack)
 	if (stack != NULL)
 	{
 		NODE* tmp = *stack;
-		*stack = (**stack).next;
+		*stack = (*stack)->next;
 		free(tmp->opts);
 		free(tmp);
 	}
@@ -252,86 +252,70 @@ int destroyNode(NODE* node)
 	return 0;
 }
 
-LINE* createLine(FILE* file)
+LINE* createLine(wchar_t* wcsLine)
 {
 	//
 	LINE* line = malloc(sizeof(LINE));
 	line->tag = malloc(1 * sizeof(wchar_t));
-	line->atributes = malloc(sizeof(wchar_t*));
-	line->values = malloc(sizeof(wchar_t*));
+	line->atributes = NULL;
+	line->values = NULL;
 	line->tag[0] = '\0';
 	line->atribc = 0;
-	int n = 0;
-	wchar_t c = fgetwc(file);
-	if (c == '<')
+	int n = 0, i = 0, lineLen = wcslen(wcsLine);
+	//wchar_t c = fgetwc(file);
+	if (wcsLine[i] == '<')
 	{
-		c = fgetwc(file);
+		i++;
 	}
-	for (; c != '>' && c != ' '; c = fgetwc(file))
+	for (; i < lineLen && iswprint(wcsLine[i]) && wcsLine[i] != '>' && wcsLine[i] != ' '; i++)
 	{
 		line->tag = realloc(line->tag, (n + 2) * sizeof(wchar_t));
-		line->tag[n++] = c;
+		line->tag[n++] = wcsLine[i];
 	}
 	line->tag = realloc(line->tag, (n + 2) * sizeof(wchar_t));
 	line->tag[n] = '\0';
 
-	if (c == ' ')
+	for (; i < lineLen && (!iswprint(wcsLine[i]) || wcsLine[i] == ' '); i++);
+
+	while (i < lineLen && wcsLine[i] != '>' && wcsLine[i] != '/' && wcsLine[i] != '?')
 	{
-		c = fgetwc(file);
-		n = 0;
 		line->atribc++;
-		line->atributes[0] = malloc(sizeof(wchar_t));
-		line->values[0] = malloc(sizeof(wchar_t));
-		line->atributes[0][0] = '\0';
-		line->values[0][0] = '\0';
-		
-		while (c != '>' && c != '/')
+		line->atributes = realloc(line->atributes, (line->atribc) * sizeof(wchar_t*));
+		line->values = realloc(line->values, (line->atribc) * sizeof(wchar_t*));
+		line->atributes[line->atribc - 1] = malloc(sizeof(wchar_t));
+		line->values[line->atribc - 1] = malloc(sizeof(wchar_t));
+		line->atributes[line->atribc - 1][0] = '\0';
+		line->values[line->atribc - 1][0] = '\0';
+		n = 0;
+		for (; i < lineLen &&  iswprint(wcsLine[i]) && wcsLine[i] != '=' && wcsLine[i] != '>' && wcsLine[i] != '/' && wcsLine[i] != '?' && wcsLine[i] != ' '; i++)
 		{
-			if ((c == '?') || (c == '='))
-			{
-				c = fgetwc(file);
-				continue;
-			}
-			if (c == ' ')
-			{
-				line->atribc++;
-				line->atributes = realloc(line->atributes, (line->atribc) * sizeof(wchar_t*));
-				line->values = realloc(line->values, (line->atribc) * sizeof(wchar_t*));
-				line->atributes[line->atribc - 1] = malloc(sizeof(wchar_t));
-				line->values[line->atribc - 1] = malloc(sizeof(wchar_t));
-				line->atributes[line->atribc - 1][0] = '\0';
-				line->values[line->atribc - 1][0] = '\0';
-				n = 0;
-				c = fgetwc(file);
-				continue;
-			}
-			if (c == '\"')
-			{
-				c = fgetwc(file); // skip (=")
-				n = 0;
-				for(; c != '\"'; c = fgetwc(file))
-				{
-					line->values[line->atribc - 1] = realloc(line->values[line->atribc - 1], (n + 2) * sizeof(wchar_t));
-					line->values[line->atribc - 1][n++] = c;
-				}
-				line->values[line->atribc - 1] = realloc(line->values[line->atribc - 1], (n + 2) * sizeof(wchar_t));
-				line->values[line->atribc - 1][n++] = '\0';
-				if (c == '\"')
-				{
-					c = fgetwc(file);
-					continue;
-				}
-			}
-			for (; c != '=' && c != '?' && c != '>' && c != '/' && c != ' '; c = fgetwc(file))
-			{
-				line->atributes[line->atribc - 1] = realloc(line->atributes[line->atribc - 1], (n + 2) * sizeof(wchar_t));
-				line->atributes[line->atribc - 1][n++] = c;
-			}
 			line->atributes[line->atribc - 1] = realloc(line->atributes[line->atribc - 1], (n + 2) * sizeof(wchar_t));
-			line->atributes[line->atribc - 1][n++] = '\0';
+			line->atributes[line->atribc - 1][n++] = wcsLine[i];
 		}
+		line->atributes[line->atribc - 1] = realloc(line->atributes[line->atribc - 1], (n + 2) * sizeof(wchar_t));
+		line->atributes[line->atribc - 1][n++] = '\0';
+
+		for (; i < lineLen && (!iswprint(wcsLine[i]) || wcsLine[i] == ' ' || wcsLine[i] == '='); i++);
+
+		if (wcsLine[i] == '\"')
+		{
+			i++; // skip (=")
+			n = 0;
+			for(; wcsLine[i] != '\0' && wcsLine[i] != '\"'; i++)
+			{
+				line->values[line->atribc - 1] = realloc(line->values[line->atribc - 1], (n + 2) * sizeof(wchar_t));
+				line->values[line->atribc - 1][n++] = wcsLine[i];
+			}
+			line->values[line->atribc - 1] = realloc(line->values[line->atribc - 1], (n + 2) * sizeof(wchar_t));
+			line->values[line->atribc - 1][n++] = '\0';
+			if (wcsLine[i] == '\"')
+			{
+				i++;
+			}
+		}
+		for (; i < lineLen && (!iswprint(wcsLine[i]) || wcsLine[i] == ' '); i++);
 	}
-	long current = ftell(file);
+	/*long current = ftell(file);
 
 	n = 0;
 	line->content = malloc(sizeof(wchar_t));
@@ -350,7 +334,7 @@ LINE* createLine(FILE* file)
 	}
 	line->content[n] = '\0';
 
-	fseek(file, current, SEEK_SET);
+	fseek(file, current, SEEK_SET);*/
 	return line;
 }
 

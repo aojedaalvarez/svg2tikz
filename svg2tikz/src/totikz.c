@@ -72,15 +72,18 @@ wchar_t* convertColor(FILE* outfile, wchar_t* sColor)
 	//
 	if(!isNode(colors, sColor + 1))
 	{
-		wchar_t *tmp = NULL, R[2], G[2], B[2];
-		R[0] = sColor[1];
-		R[1] = '\0';
-		G[0] = sColor[2];
-		G[1] = '\0';
-		B[0] = sColor[3];
-		B[1] = '\0';
-		int r = wcstol(R, &tmp, 16) * 255 / 15, g = wcstol(G, &tmp, 16) * 255 / 15, b = wcstol(B, &tmp, 16) * 255 / 15;
-		//swprintf(tColor, 28, L"red!%d!green!%d!blue!%d", r, g, b);
+		int lenCor = (wcslen(sColor) - 1) / 3;
+		wchar_t *tmp = NULL, R[lenCor + 1], G[lenCor + 1], B[lenCor + 1];
+		for (int i = 0; i < lenCor; i++)
+		{
+			R[i] = sColor[i + 1];
+			G[i] = sColor[lenCor + i + 1];
+			B[i] = sColor[2 * lenCor + i + 1];
+		}
+		R[lenCor] = '\0';
+		G[lenCor] = '\0';
+		B[lenCor] = '\0';
+		int r = wcstol(R, &tmp, 16) * 255 / (pow(16, lenCor) - 1), g = wcstol(G, &tmp, 16) * 255 / (pow(16, lenCor) - 1), b = wcstol(B, &tmp, 16) * 255 / (pow(16, lenCor) - 1);
 		wchar_t *padding = malloc(sizeof(wchar_t));
 		padding[0] = '\0';
 		padding = addPadding(padding, globalPadding);
@@ -101,7 +104,51 @@ wchar_t* shapeOptions(wchar_t* args, NODE* stack, LINE* line, FILE* outfile)
 		args = addStr(args, stack->opts);
 	}
 
-	int d = getValue(line, L"stroke");
+	int d = getValue(line, L"style");
+	if (d != -1)
+	{
+		wchar_t *buffer = malloc(sizeof(wchar_t));
+		buffer[0] = '\0';
+		buffer = addStr(buffer, L"<style ");
+		for (int i = 0, n = wcslen(line->values[d]); i < n != '\0'; i++)
+		{
+			if (line->values[d][i] == ':')
+			{
+				buffer = addStr(buffer, L"=\"");
+			}
+			else if (line->values[d][i] == ';')
+			{
+				buffer = addStr(buffer, L"\" ");
+			}
+			else if (line->values[d][i] == ' ')
+			{
+				continue;
+			}
+			else
+			{
+				buffer = addChar(buffer, line->values[d][i]);
+			}
+		}
+		buffer = addChar(buffer, '>');
+
+		LINE* tmpLine = createLine(buffer);
+		tmpLine->content = NULL;
+
+		wchar_t *tmpArgs = NULL;
+		tmpArgs = shapeOptions(tmpArgs, NULL, tmpLine, outfile);
+		if (wcslen(args) > 0 && wcslen(tmpArgs) > 0)
+		{
+			args = addStr(args, L", ");
+		}
+		if (wcslen(tmpArgs) > 0)
+		{
+			args = addStr(args, tmpArgs);
+		}
+		free(buffer);
+		free(tmpArgs);
+		freeLine(tmpLine);
+	}
+	d = getValue(line, L"stroke");
 	if (d != -1 && wcscmp(line->values[d], L"none") != 0)
 	{
 		if (wcslen(args) > 0)
@@ -310,15 +357,15 @@ int tikzPath(LINE* line, FILE* outfile)
 					i = addPoint(&commd, path, i);
 					if(path[i] == ' ')
 					{
-						for(; path[i] == ' '; i++);
+						for(; path[i] == ' ' || !iswprint(path[i]); i++);
 						if (iswdecimal(path[i]) || path[i] == '-')
 						{
-							commd = addStr(commd, L") (");
+							commd = addStr(commd, L") -- (");
 						}
 					}
 					else if(path[i] == '-')
 					{
-						commd = addStr(commd, L") (");
+						commd = addStr(commd, L") -- (");
 					}
 					else if(path[i] == '\0')
 					{
@@ -351,15 +398,15 @@ int tikzPath(LINE* line, FILE* outfile)
 					i = addPoint(&commd, path, i);
 					if(path[i] == ' ')
 					{
-						for(; path[i] == ' '; i++);
+						for(; path[i] == ' ' || !iswprint(path[i]); i++);
 						if(iswdecimal(path[i]) || path[i] == '-')
 						{
-							commd = addStr(commd, L") ++(");
+							commd = addStr(commd, L") -- ++(");
 						}
 					}
 					else if(path[i] == '-')
 					{
-						commd = addStr(commd, L") ++(");
+						commd = addStr(commd, L") -- ++(");
 					}
 					else if(path[i] == '\0')
 					{
@@ -385,7 +432,7 @@ int tikzPath(LINE* line, FILE* outfile)
 					i = addPoint(&commd, path, i);
 					if(path[i] == ' ')
 					{
-						for(; path[i] == ' '; i++);
+						for(; path[i] == ' ' || !iswprint(path[i]); i++);
 						if(iswdecimal(path[i]) || path[i] == '-')
 						{
 							commd = addStr(commd, L") -- (");	
@@ -419,7 +466,7 @@ int tikzPath(LINE* line, FILE* outfile)
 					i = addPoint(&commd, path, i);
 					if(path[i] == ' ')
 					{
-						for(; path[i] == ' '; i++);
+						for(; path[i] == ' ' || !iswprint(path[i]); i++);
 						if(iswdecimal(path[i]) || path[i] == '-')
 						{
 							commd = addStr(commd, L") -- ++(");
@@ -1304,7 +1351,30 @@ int tikzlinearGradient(LINE* line, FILE* infile, FILE* outfile)
 		}
 	}
 	
-	LINE* stop = createLine(infile);
+
+	wchar_t *buffer = malloc(sizeof(wchar_t)), c = fgetwc(infile);
+	buffer[0] = '\0';
+	for(; c != '<'; c = fgetwc(infile))
+	{
+		if(c == WEOF)
+		{
+			return -1;
+		}
+	}
+	int n = 0;
+	for (; c != '>'; c = fgetwc(infile))
+	{
+		buffer = realloc(buffer, (n + 2) * sizeof(wchar_t));
+		buffer[n++] = c;
+	}
+	c = fgetwc(infile);
+	buffer = realloc(buffer, (n + 2) * sizeof(wchar_t));
+	buffer[n++] = '>';
+	buffer[n] = '\0';
+
+	LINE *stop = createLine(buffer);
+	free(buffer);
+
 	d = getValue(stop, L"stop-color");
 	if (d != -1)
 	{
@@ -1313,14 +1383,29 @@ int tikzlinearGradient(LINE* line, FILE* infile, FILE* outfile)
 	}
 	freeLine(stop);
 
-	for(wchar_t c = fgetwc(infile); c != '<'; c = fgetwc(infile))
+	buffer = malloc(sizeof(wchar_t));
+	buffer[0] = '\0';
+	for(; c != '<'; c = fgetwc(infile))
 	{
 		if(c == WEOF)
 		{
 			return -1;
 		}
 	}
-	stop = createLine(infile);
+	n = 0;
+	for (; c != '>'; c = fgetwc(infile))
+	{
+		buffer = realloc(buffer, (n + 2) * sizeof(wchar_t));
+		buffer[n++] = c;
+	}
+	c = fgetwc(infile);
+	buffer = realloc(buffer, (n + 2) * sizeof(wchar_t));
+	buffer[n++] = '>';
+	buffer[n] = '\0';
+
+	stop = createLine(buffer);
+	free(buffer);
+
 	d = getValue(stop, L"stop-color");
 	if (d != -1)
 	{

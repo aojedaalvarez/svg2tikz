@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
+#include <wctype.h>
 #include <unistd.h>
 #include <locale.h>
 #include "process.h"
@@ -75,7 +76,35 @@ int main(int argc, char *argv[])
 		if(c == '<')
 		{
 			//
-			LINE *line = createLine(infile);
+			wchar_t *buffer = malloc(sizeof(wchar_t));
+			buffer[0] = '\0';
+			int n = 0;
+			for (; c != '>'; c = fgetwc(infile))
+			{
+				buffer = realloc(buffer, (n + 2) * sizeof(wchar_t));
+				buffer[n++] = c;
+			}
+			buffer = realloc(buffer, (n + 2) * sizeof(wchar_t));
+			buffer[n++] = '>';
+			buffer[n] = '\0';
+
+			LINE *line = createLine(buffer);
+			free(buffer);
+
+			n = 0;
+			line->content = malloc(sizeof(wchar_t));
+			if (c == '>')
+			{
+				c = fgetwc(infile);
+				for (; c != WEOF && !iswprint(c); c = fgetwc(infile));
+				for (; c != WEOF && c != '<'; c = fgetwc(infile))
+				{
+					line->content = realloc(line->content, (n + 2) * sizeof(wchar_t));
+					line->content[n++] = c;
+				}
+			}
+			line->content[n] = '\0';
+
 			if (wcscmp(line->tag, L"?xml") == 0)
 			{
 				xmlData(line);
@@ -83,7 +112,10 @@ int main(int argc, char *argv[])
 			processLine(line, infile, outfile);
 			freeLine(line);
 		}
-		c = fgetwc(infile);
+		else
+		{
+			c = fgetwc(infile);
+		}
 	}
 
 	// Free global variables

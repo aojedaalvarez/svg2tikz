@@ -55,7 +55,7 @@ int isNode(NODE* node, wchar_t* opts);
 
 int destroyNode(NODE* node);
 
-LINE* createLine(FILE* file);
+LINE* createLine(wchar_t* wcsLine);
 
 int getValue(LINE* line, wchar_t* atribute);
 
