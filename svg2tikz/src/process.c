@@ -315,6 +315,7 @@ LINE* createLine(wchar_t* wcsLine)
 		}
 		for (; i < lineLen && (!iswprint(wcsLine[i]) || wcsLine[i] == ' '); i++);
 	}
+	line->content = NULL;
 	/*long current = ftell(file);
 
 	n = 0;

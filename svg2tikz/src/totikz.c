@@ -110,7 +110,7 @@ wchar_t* shapeOptions(wchar_t* args, NODE* stack, LINE* line, FILE* outfile)
 		wchar_t *buffer = malloc(sizeof(wchar_t));
 		buffer[0] = '\0';
 		buffer = addStr(buffer, L"<style ");
-		for (int i = 0, n = wcslen(line->values[d]); i < n != '\0'; i++)
+		for (int i = 0, n = wcslen(line->values[d]); i < n; i++)
 		{
 			if (line->values[d][i] == ':')
 			{
@@ -120,7 +120,7 @@ wchar_t* shapeOptions(wchar_t* args, NODE* stack, LINE* line, FILE* outfile)
 			{
 				buffer = addStr(buffer, L"\" ");
 			}
-			else if (line->values[d][i] == ' ')
+			else if (line->values[d][i] == ' ' || !iswprint(line->values[d][i]))
 			{
 				continue;
 			}
@@ -231,7 +231,10 @@ wchar_t* shapeOptions(wchar_t* args, NODE* stack, LINE* line, FILE* outfile)
 			args = addStr(args, L", ");
 		}
 		args = addStr(args, L"line width=");
-		args = addStr(args, line->values[d]);
+		wchar_t* tmpValue = NULL, buffer[16];
+		float wd = wcstof(line->values[d], &tmpValue) * 0.75;
+		swprintf(buffer, 16, L"%.4f", wd);
+		args = addStr(args, buffer);
 	}
 	return args;
 }
@@ -255,16 +258,27 @@ wchar_t* textOptions(wchar_t* args, NODE* stack, LINE* line)
 		}
 		if (wcscmp(line->values[d], L"start") == 0)
 		{
+			wcscpy(inherit, L"anchor=south west");
 			args = addStr(args, L"anchor=south west");
 		}
 		if (wcscmp(line->values[d], L"end") == 0)
 		{
+			wcscpy(inherit, L"anchor=south east");
 			args = addStr(args, L"anchor=south east");
 		}
 		if (wcscmp(line->values[d], L"middle") == 0)
 		{
+			wcscpy(inherit, L"anchor=south");
 			args = addStr(args, L"anchor=south");
 		}
+	}
+	else
+	{
+		if (wcslen(args) > 0)
+		{
+			args = addStr(args, L", ");
+		}
+		args = addStr(args, inherit);
 	}
 	d = getValue(line, L"font-weight");
 	if (d != -1 && wcscmp(line->values[d], L"bold") == 0)
@@ -283,7 +297,10 @@ wchar_t* textOptions(wchar_t* args, NODE* stack, LINE* line)
 			args = addStr(args, L", ");
 		}
 		args = addStr(args, L"xshift=");
-		args = addStr(args, line->values[d]);
+		wchar_t* tmpValue = NULL, buffer[16];
+		float wd = wcstof(line->values[d], &tmpValue) * 0.75;
+		swprintf(buffer, 16, L"%.4f", wd);
+		args = addStr(args, buffer);
 	}
 	d = getValue(line, L"dy");
 	if (d != -1)
@@ -293,16 +310,10 @@ wchar_t* textOptions(wchar_t* args, NODE* stack, LINE* line)
 			args = addStr(args, L", ");
 		}
 		args = addStr(args, L"yshift=");
-		if (line->values[d][0] == '-')
-		{
-			wchar_t* tmpy = line->values[d] + 1;
-			args = addStr(args, tmpy);
-		}
-		else
-		{
-			args = addChar(args, '-');
-			args = addStr(args, line->values[d]);
-		}
+		wchar_t* tmpValue = NULL, buffer[16];
+		float wd = - wcstof(line->values[d], &tmpValue) * 0.75;
+		swprintf(buffer, 16, L"%.4f", wd);
+		args = addStr(args, buffer);
 	}
 	return args;
 }
@@ -346,7 +357,7 @@ int tikzPath(LINE* line, FILE* outfile)
 	{
 		//
 		wchar_t* path = line->values[d];
-		for (int i = 0; path[i] != '\0';)
+		for (int i = 0, pLen = wcslen(path); i < pLen;)
 		{
 			if (path[i] == 'M')
 			{
@@ -355,19 +366,12 @@ int tikzPath(LINE* line, FILE* outfile)
 				while(!iswalpha(path[i]))
 				{
 					i = addPoint(&commd, path, i);
-					if(path[i] == ' ')
-					{
-						for(; path[i] == ' ' || !iswprint(path[i]); i++);
-						if (iswdecimal(path[i]) || path[i] == '-')
-						{
-							commd = addStr(commd, L") -- (");
-						}
-					}
-					else if(path[i] == '-')
+					for (; i < pLen && !(path[i] != ' ' && iswprint(path[i])); i++);
+					if(iswdecimal(path[i]) || path[i] == '-')
 					{
 						commd = addStr(commd, L") -- (");
 					}
-					else if(path[i] == '\0')
+					else
 					{
 						break;
 					}
@@ -396,19 +400,12 @@ int tikzPath(LINE* line, FILE* outfile)
 				while(!iswalpha(path[i]))
 				{
 					i = addPoint(&commd, path, i);
-					if(path[i] == ' ')
-					{
-						for(; path[i] == ' ' || !iswprint(path[i]); i++);
-						if(iswdecimal(path[i]) || path[i] == '-')
-						{
-							commd = addStr(commd, L") -- ++(");
-						}
-					}
-					else if(path[i] == '-')
+					for (; i < pLen && !(path[i] != ' ' && iswprint(path[i])); i++);
+					if(iswdecimal(path[i]) || path[i] == '-')
 					{
 						commd = addStr(commd, L") -- ++(");
 					}
-					else if(path[i] == '\0')
+					else
 					{
 						break;
 					}
@@ -430,19 +427,12 @@ int tikzPath(LINE* line, FILE* outfile)
 				while(!iswalpha(path[i]))
 				{
 					i = addPoint(&commd, path, i);
-					if(path[i] == ' ')
-					{
-						for(; path[i] == ' ' || !iswprint(path[i]); i++);
-						if(iswdecimal(path[i]) || path[i] == '-')
-						{
-							commd = addStr(commd, L") -- (");	
-						}
-					}
-					else if(path[i] == '-')
+					for (; i < pLen && !(path[i] != ' ' && iswprint(path[i])); i++);
+					if(iswdecimal(path[i]) || path[i] == '-')
 					{
 						commd = addStr(commd, L") -- (");
 					}
-					else if(path[i] == '\0')
+					else
 					{
 						break;
 					}
@@ -464,19 +454,12 @@ int tikzPath(LINE* line, FILE* outfile)
 				while(!iswalpha(path[i]))
 				{
 					i = addPoint(&commd, path, i);
-					if(path[i] == ' ')
-					{
-						for(; path[i] == ' ' || !iswprint(path[i]); i++);
-						if(iswdecimal(path[i]) || path[i] == '-')
-						{
-							commd = addStr(commd, L") -- ++(");
-						}
-					}
-					else if(path[i] == '-')
+					for (; i < pLen && !(path[i] != ' ' && iswprint(path[i])); i++);
+					if(iswdecimal(path[i]) || path[i] == '-')
 					{
 						commd = addStr(commd, L") -- ++(");
 					}
-					else if(path[i] == '\0')
+					else
 					{
 						break;
 					}
@@ -493,103 +476,125 @@ int tikzPath(LINE* line, FILE* outfile)
 			}
 			else if (path[i] == 'H')
 			{
-				int j = wcslen(commd);
-				wchar_t lastY[j];
-				swprintf(lastY, j, L"%4.4f", lastPos.y);
-				commd = addStr(commd, L" -- (");
-				for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
-				if (path[i] == '-')
+				for(; path[i] != '\0' && !iswdecimal(path[i]) && path[i] != '-'; i++);
+				while (!iswalpha(path[i]))
 				{
-					commd = addChar(commd, '-');
-					i++;
+					commd = addStr(commd, L" -- (");
+					wchar_t* tmpPoint = NULL;
+					lastPos.x = wcstof(path + i, &tmpPoint);
+					if (path[i] == '-')
+					{
+						commd = addChar(commd, '-');
+						i++;
+					}
+					while (iswdecimal(path[i]))
+					{
+						commd = addChar(commd, path[i++]);
+					}
+					wchar_t lastY[32];
+					swprintf(lastY, 32, L", %.4f", lastPos.y);
+					commd = addStr(commd, lastY);
+					commd = addChar(commd, ')');
+					for (; i < pLen && !(path[i] != ' ' && iswprint(path[i])); i++);
+					if(path[i] == '\0')
+					{
+						break;
+					}
 				}
-				while (iswdecimal(path[i]))
-				{
-					commd = addChar(commd, path[i++]);
-				}
-				commd = addStr(commd, L", ");
-				commd = addStr(commd, lastY);
-				commd = addChar(commd, ')');
 				
-				for(j = wcslen(commd); j > 0 && commd[j] != '('; j--);
-				wchar_t* tmpPoint = NULL;
-				lastPos.x = wcstof(commd + j + 1, &tmpPoint);
 				lastPos.path = 'H';
 				lastControl.path = '\0';
 			}
 			else if (path[i] == 'h')
 			{
-				commd = addStr(commd, L" -- ++(");
-				for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
-				if (path[i] == '-')
+				for(; path[i] != '\0' && !iswdecimal(path[i]) && path[i] != '-'; i++);
+				while (!iswalpha(path[i]))
 				{
-					commd = addChar(commd, '-');
-					i++;
+					commd = addStr(commd, L" -- ++(");
+					wchar_t* tmpPoint = NULL;
+					lastPos.x += wcstof(path + i, &tmpPoint);
+					if (path[i] == '-')
+					{
+						commd = addChar(commd, '-');
+						i++;
+					}
+					while (iswdecimal(path[i]))
+					{
+						commd = addChar(commd, path[i++]);
+					}
+					commd = addStr(commd, L", 0)");
+					for (; i < pLen && !(path[i] != ' ' && iswprint(path[i])); i++);
+					if(path[i] == '\0')
+					{
+						break;
+					}
 				}
-				while (iswdecimal(path[i]))
-				{
-					commd = addChar(commd, path[i++]);
-				}
-				commd = addStr(commd, L", 0)");
 				
-				int j;
-				for(j = wcslen(commd); j > 0 && commd[j] != '('; j--);
-				wchar_t* tmpPoint = NULL;
-				lastPos.x += wcstof(commd + j + 1, &tmpPoint);
 				lastPos.path = 'h';
 				lastControl.path = '\0';
 			}
 			else if (path[i] == 'V')
 			{
-				int j = wcslen(commd);
-				wchar_t lastX[j];
-				swprintf(lastX, j, L"%4.4f", lastPos.x);
-				commd = addStr(commd, L" -- (");
-				commd = addStr(commd, lastX);
-				commd = addStr(commd, L", ");
-				for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
-				if (path[i] == '-')
+				for(; path[i] != '\0' && !iswdecimal(path[i]) && path[i] != '-'; i++);
+				while (!iswalpha(path[i]))
 				{
-					i++;
+					wchar_t lastX[32];
+					swprintf(lastX, 32, L"%.4f", lastPos.x);
+					commd = addStr(commd, L" -- (");
+					commd = addStr(commd, lastX);
+					commd = addStr(commd, L", ");
+					wchar_t* tmpPoint = NULL;
+					lastPos.y = - wcstof(path + i, &tmpPoint);
+					if (path[i] == '-')
+					{
+						i++;
+					}
+					else if(path[i] != '0')
+					{
+						commd = addChar(commd, '-');
+					}
+					while (iswdecimal(path[i]))
+					{
+						commd = addChar(commd, path[i++]);
+					}
+					commd = addChar(commd, ')');
+					for (; i < pLen && !(path[i] != ' ' && iswprint(path[i])); i++);
+					if(path[i] == '\0')
+					{
+						break;
+					}
 				}
-				else if(path[i] != '0')
-				{
-					commd = addChar(commd, '-');
-				}
-				while (iswdecimal(path[i]))
-				{
-					commd = addChar(commd, path[i++]);
-				}
-				commd = addChar(commd, ')');
-				
-				for(j = wcslen(commd); j > 0 && commd[j] != ','; j--);
-				wchar_t* tmpPoint = NULL;
-				lastPos.y = wcstof(commd + j + 2, &tmpPoint);
 				lastPos.path = 'V';
 				lastControl.path = '\0';
 			}
 			else if (path[i] == 'v')
 			{
-				commd = addStr(commd, L" -- ++(0, ");
-				for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
-				if (path[i] == '-')
+				for(; path[i] != '\0' && !iswdecimal(path[i]) && path[i] != '-'; i++);
+				while (!iswalpha(path[i]))
 				{
-					i++;
+					commd = addStr(commd, L" -- ++(0, ");
+					wchar_t* tmpPoint = NULL;
+					lastPos.y -= wcstof(path + i, &tmpPoint);
+					
+					if (path[i] == '-')
+					{
+						i++;
+					}
+					else if(path[i] != '0')
+					{
+						commd = addChar(commd, '-');
+					}
+					while (iswdecimal(path[i]))
+					{
+						commd = addChar(commd, path[i++]);
+					}
+					commd = addChar(commd, ')');
+					for (; i < pLen && !(path[i] != ' ' && iswprint(path[i])); i++);
+					if(path[i] == '\0')
+					{
+						break;
+					}
 				}
-				else if(path[i] != '0')
-				{
-					commd = addChar(commd, '-');
-				}
-				while (iswdecimal(path[i]))
-				{
-					commd = addChar(commd, path[i++]);
-				}
-				commd = addChar(commd, ')');
-				
-				int j;
-				for(j = wcslen(commd); j > 0 && commd[j] != ','; j--);
-				wchar_t* tmpPoint = NULL;
-				lastPos.y += wcstof(commd + j + 2, &tmpPoint);
 				lastPos.path = 'v';
 				lastControl.path = '\0';
 			}
@@ -608,17 +613,26 @@ int tikzPath(LINE* line, FILE* outfile)
 			}
 			else if (path[i] == 'C')
 			{
-				commd = addStr(commd, L" .. controls (");
-				for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
-				i = addPoint(&commd, path, i);
-				commd = addStr(commd, L") and (");
-				for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
-				i = addPoint(&commd, path, i);
-				commd = addStr(commd, L") .. (");
-				for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
-				i = addPoint(&commd, path, i);
-				commd = addChar(commd, ')');
-				
+				for(; path[i] != '\0' && !iswdecimal(path[i]) && path[i] != '-'; i++);
+				while (!iswalpha(path[i]))
+				{
+					commd = addStr(commd, L" .. controls (");
+					for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
+					i = addPoint(&commd, path, i);
+					commd = addStr(commd, L") and (");
+					for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
+					i = addPoint(&commd, path, i);
+					commd = addStr(commd, L") .. (");
+					for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
+					i = addPoint(&commd, path, i);
+					commd = addChar(commd, ')');
+					for (; i < pLen && !(path[i] != ' ' && iswprint(path[i])); i++);
+					if(path[i] == '\0')
+					{
+						break;
+					}
+				}
+
 				int j;
 				wchar_t* tmpPoint = NULL;
 				for(j = wcslen(commd); j > 0 && commd[j] != 'd'; j--);
@@ -634,256 +648,367 @@ int tikzPath(LINE* line, FILE* outfile)
 			}
 			else if (path[i] == 'c')
 			{
-				commd = addStr(commd, L" .. controls ++(");
-				for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
-				i = addPoint(&commd, path, i);
-				commd = addStr(commd, L") and ++(");
-				for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
-				i = addPoint(&commd, path, i);
-				commd = addStr(commd, L") .. ++(");
-				for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
-				i = addPoint(&commd, path, i);
-				commd = addChar(commd, ')');
-				
-				int j;
-				wchar_t* tmpPoint = NULL;
-				for(j = wcslen(commd); j > 0 && commd[j] != 'd'; j--);
-				lastControl.x = lastPos.x + wcstof(commd + j + 5, &tmpPoint);
-				lastControl.y = lastPos.y + wcstof(tmpPoint + 2, &tmpPoint);
-				lastControl.path = 'c';
+				for(; path[i] != '\0' && !iswdecimal(path[i]) && path[i] != '-'; i++);
+				while (!iswalpha(path[i]))
+				{
+					commd = addStr(commd, L" .. controls ++(");
+					for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
+					i = addPoint(&commd, path, i);
+					commd = addStr(commd, L") and ++(");
+					for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
 
-				j += 3;
-				for(int n = wcslen(commd); j < n && commd[j] != '('; j++);
-				lastPos.x += wcstof(commd + j + 1, &tmpPoint);
-				lastPos.y += wcstof(tmpPoint + 2, &tmpPoint);
+					wchar_t* tmpPoint = NULL;
+					lastControl.x = lastPos.x + wcstof(path + i, &tmpPoint);
+					int j = 0;
+					for (; !iswdecimal(tmpPoint[j]) && tmpPoint[j] != '-'; j++);
+					lastControl.y = lastPos.y - wcstof(tmpPoint + j, &tmpPoint);
+					
+					i = addPoint(&commd, path, i);
+					commd = addStr(commd, L") .. ++(");
+					for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
+
+					lastPos.x += wcstof(path + i, &tmpPoint);
+					for (j = 0; !iswdecimal(tmpPoint[j]) && tmpPoint[j] != '-'; j++);
+					lastPos.y -= wcstof(tmpPoint + j, &tmpPoint);
+
+					i = addPoint(&commd, path, i);
+					commd = addChar(commd, ')');
+					for (; i < pLen && !(path[i] != ' ' && iswprint(path[i])); i++);
+					if(path[i] == '\0')
+					{
+						break;
+					}
+				}
+				lastControl.path = 'c';
 				lastPos.path = 'c';
 			}
 			else if (path[i] == 'S')
 			{
-				commd = addStr(commd, L" .. controls (");
-				for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
-				int j = i;
-				
-				float cx, cy;
-				wchar_t * point = NULL;
-				if(lastControl.path != '\0')
+				for(; path[i] != '\0' && !iswdecimal(path[i]) && path[i] != '-'; i++);
+				while (!iswalpha(path[i]))
 				{
-					cx = 2 * lastPos.x - lastControl.x;
-					cy = 2 * lastPos.y - lastControl.y;
-					point = malloc(21 * sizeof(wchar_t));
-					swprintf(point, 64, L"%4.4f, %4.4f", cx, cy);
-				}
-				else
-				{
-					point = malloc(sizeof(wchar_t));
-					point[0] = '\0';
-					j = addPoint(&point, path, j);
-				}
+					commd = addStr(commd, L" .. controls (");
+					for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
+					int j = i;
+					
+					float cx, cy;
+					wchar_t *point = NULL;
+					if(lastControl.path == 'C' || lastControl.path == 'c' || lastControl.path == 'S' || lastControl.path == 's')
+					{
+						cx = 2 * lastPos.x - lastControl.x;
+						cy = 2 * lastPos.y - lastControl.y;
+						point = malloc(64 * sizeof(wchar_t));
+						swprintf(point, 64, L"%4.4f, %4.4f", cx, cy);
+					}
+					else
+					{
+						point = malloc(sizeof(wchar_t));
+						point[0] = '\0';
+						j = addPoint(&point, path, j);
+					}
 
-				commd = addStr(commd, point);
-				commd = addStr(commd, L") and (");
-				i = addPoint(&commd, path, i);
-				commd = addStr(commd, L") .. (");
-				for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
-				i = addPoint(&commd, path, i);
-				commd = addChar(commd, ')');
-				free(point);
+					commd = addStr(commd, point);
+					commd = addStr(commd, L") and (");
+					free(point);
+
+					wchar_t *tmpPoint;
+					lastControl.x = wcstof(path + i, &tmpPoint);
+					for (j = 0; !iswdecimal(tmpPoint[j]) && tmpPoint[j] != '-'; j++);
+					lastControl.y = - wcstof(tmpPoint + j, &tmpPoint);
+					lastControl.path = 'S';
+
+					i = addPoint(&commd, path, i);
+					commd = addStr(commd, L") .. (");
+					for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
+
+					lastPos.x = wcstof(path + i, &tmpPoint);
+					for (j = 0; !iswdecimal(tmpPoint[j]) && tmpPoint[j] != '-'; j++);
+					lastPos.y = - wcstof(tmpPoint + j, &tmpPoint);
+
+					i = addPoint(&commd, path, i);
+					commd = addChar(commd, ')');
+					for (; i < pLen && !(path[i] != ' ' && iswprint(path[i])); i++);
+					if(path[i] == '\0')
+					{
+						break;
+					}
+				}
 				
-				wchar_t *tmpPoint;
-				for(j = wcslen(commd); j > 0 && commd[j] != 'd'; j--);
-				lastControl.x = wcstof(commd + j + 3, &tmpPoint);
-				lastControl.y = wcstof(tmpPoint + 2, &tmpPoint);
-				lastControl.path = 'S';
-
-				j += 3;
-				for(int n = wcslen(commd); j < n && commd[j] != '('; j++);
-				lastPos.x = wcstof(commd + j + 1, &tmpPoint);
-				lastPos.y = wcstof(tmpPoint + 2, &tmpPoint);
 				lastPos.path = 'S';
 			}
 			else if (path[i] == 's')
 			{
-				commd = addStr(commd, L" .. controls ");
-				for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
-				int j = i;
-				
-				float cx, cy;
-				wchar_t * point = NULL;
-				if(lastControl.path != '\0')
+				for(; path[i] != '\0' && !iswdecimal(path[i]) && path[i] != '-'; i++);
+				while (!iswalpha(path[i]))
 				{
-					cx = 2 * lastPos.x - lastControl.x;
-					cy = 2 * lastPos.y - lastControl.y;
-					point = malloc(21 * sizeof(wchar_t));
-					swprintf(point, 64, L"(%4.4f, %4.4f", cx, cy);
-				}
-				else
-				{
-					point = malloc(sizeof(wchar_t));
-					point[0] = '\0';
-					point = addStr(point, L"++(");
-					j = addPoint(&point, path, j);
+					commd = addStr(commd, L" .. controls ");
+					
+					float cx, cy;
+					int j = 0;
+					wchar_t * point = NULL;
+					if(lastControl.path == 'C' || lastControl.path == 'c' || lastControl.path == 'S' || lastControl.path == 's')
+					{
+						cx = 2 * lastPos.x - lastControl.x;
+						cy = 2 * lastPos.y - lastControl.y;
+						point = malloc(21 * sizeof(wchar_t));
+						swprintf(point, 64, L"(%4.4f, %4.4f", cx, cy);
+					}
+					else
+					{
+						point = malloc(sizeof(wchar_t));
+						point[0] = '\0';
+						point = addStr(point, L"++(");
+						j = addPoint(&point, path, j);
+					}
+
+					commd = addStr(commd, point);
+					commd = addStr(commd, L") and ++(");
+					free(point);
+
+					wchar_t* tmpPoint = NULL;
+					lastControl.x = lastPos.x + wcstof(path + i, &tmpPoint);
+					for (j = 0; !iswdecimal(tmpPoint[j]) && tmpPoint[j] != '-'; j++);
+					lastControl.y = lastPos.y - wcstof(tmpPoint + j, &tmpPoint);
+					lastControl.path = 's';
+
+					i = addPoint(&commd, path, i);
+					commd = addStr(commd, L") .. ++(");
+					for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
+
+					lastPos.x += wcstof(path + i, &tmpPoint);
+					for (j = 0; !iswdecimal(tmpPoint[j]) && tmpPoint[j] != '-'; j++);
+					lastPos.y -= wcstof(tmpPoint + j, &tmpPoint);
+
+					i = addPoint(&commd, path, i);
+					commd = addChar(commd, ')');
+
+					for (; i < pLen && !(path[i] != ' ' && iswprint(path[i])); i++);
+					if(path[i] == '\0')
+					{
+						break;
+					}
 				}
 
-				commd = addStr(commd, point);
-				commd = addStr(commd, L") and ++(");
-				i = addPoint(&commd, path, i);
-				commd = addStr(commd, L") .. ++(");
-				for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
-				i = addPoint(&commd, path, i);
-				commd = addChar(commd, ')');
-				free(point);
-				
-				wchar_t *tmpPoint;
-				for(j = wcslen(commd); j > 0 && commd[j] != 'd'; j--);
-				lastControl.x = lastPos.x + wcstof(commd + j + 3, &tmpPoint);
-				lastControl.y = lastPos.y + wcstof(tmpPoint + 2, &tmpPoint);
-				lastControl.path = 's';
-
-				j += 3;
-				for(int n = wcslen(commd); j < n && commd[j] != '('; j++);
-				lastPos.x += wcstof(commd + j + 1, &tmpPoint);
-				lastPos.y += wcstof(tmpPoint + 2, &tmpPoint);
 				lastPos.path = 's';
 			}
 			else if (path[i] == 'Q')
 			{
-				//
-				commd = addStr(commd, L" .. controls ");
-				for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
-				wchar_t* cpoint = malloc(sizeof(wchar_t));
-				cpoint[0] = '\0';
-				cpoint = addChar(cpoint, '(');
-				i = addPoint(&cpoint, path, i);
-				cpoint = addChar(cpoint, ')');
-				commd = addStr(commd, cpoint);
-				commd = addStr(commd, L" and ");
-				commd = addStr(commd, cpoint);
-				free(cpoint);
-				commd = addStr(commd, L" .. ");
-				for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
-				commd = addChar(commd, '(');
-				i = addPoint(&commd, path, i);
-				commd = addChar(commd, ')');
-				
-				int j;
-				wchar_t* tmpPoint = NULL;
-				for(j = wcslen(commd); j > 0 && commd[j] != 'd'; j--);
-				lastControl.x = wcstof(commd + j + 3, &tmpPoint);
-				lastControl.y = wcstof(tmpPoint + 2, &tmpPoint);
-				lastControl.path = 'Q';
+				for(; path[i] != '\0' && !iswdecimal(path[i]) && path[i] != '-'; i++);
+				while (!iswalpha(path[i]))
+				{
+					commd = addStr(commd, L" .. controls (");
+					wchar_t* cpoint = malloc(sizeof(wchar_t)), *tmpPoint = NULL;
+					cpoint[0] = '\0';	
 
-				j += 3;
-				for(int n = wcslen(commd); j < n && commd[j] != '('; j++);
-				lastPos.x = wcstof(commd + j + 1, &tmpPoint);
-				lastPos.y = wcstof(tmpPoint + 2, &tmpPoint);
+					//for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
+					i = addPoint(&cpoint, path, i);
+
+					int j = 0;
+					float cx = wcstof(cpoint, &tmpPoint);
+					for(j = 0; !iswdecimal(tmpPoint[j]) && tmpPoint[j] != '-'; j++);
+					float cy = wcstof(tmpPoint + j, &tmpPoint);
+					wchar_t buffer[32];
+					swprintf(buffer, 32, L"%.4f, %.4f", lastPos.x + 2 * (cx - lastPos.x) / 3, lastPos.y + 2 * (cy - lastPos.y) / 3);
+					commd = addStr(commd, buffer);
+				
+					commd = addStr(commd, L") and (");
+					cpoint = realloc(cpoint, sizeof(wchar_t));
+					cpoint[0] = '\0';
+					for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
+					i = addPoint(&cpoint, path, i);
+
+					lastPos.x = wcstof(cpoint, &tmpPoint);
+					for(j = 0; !iswdecimal(tmpPoint[j]) && tmpPoint[j] != '-'; j++);
+					lastPos.y = wcstof(tmpPoint + j, &tmpPoint);
+					lastControl.x = lastPos.x + 2 * (cx - lastPos.x) / 3;
+					lastControl.y = lastPos.y + 2 * (cy - lastPos.y) / 3;
+					swprintf(buffer, 32, L"%.4f, %.4f", lastControl.x, lastControl.y);
+					commd = addStr(commd, buffer);
+					commd = addStr(commd, L") .. (");
+					commd = addStr(commd, cpoint);
+					free(cpoint);
+					commd = addChar(commd, ')');
+					for (; i < pLen && !(path[i] != ' ' && iswprint(path[i])); i++);
+					if(path[i] == '\0')
+					{
+						break;
+					}
+				}
+				
+				lastControl.path = 'Q';
 				lastPos.path = 'Q';
 			}
 			else if (path[i] == 'q')
 			{
-				//
-				commd = addStr(commd, L" .. controls ++(");
-				for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
-				i = addPoint(&commd, path, i);
-				commd = addChar(commd, ')');
+				for(; path[i] != '\0' && !iswdecimal(path[i]) && path[i] != '-'; i++);
+				while (!iswalpha(path[i]))
+				{
+					commd = addStr(commd, L" .. controls (");
+					wchar_t* cpoint = malloc(sizeof(wchar_t)), *tmpPoint = NULL;
+					cpoint[0] = '\0';
 
-				int j;
-				wchar_t* tmpPoint = NULL;
-				for(j = wcslen(commd); j > 0 && commd[j] != '+'; j--);
-				lastControl.x = lastPos.x + wcstof(commd + j + 2, &tmpPoint);
-				lastControl.y = lastPos.y + wcstof(tmpPoint + 2, &tmpPoint);
-				lastControl.path = 'q';
+					//for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
+					i = addPoint(&cpoint, path, i);
 
-				commd = addStr(commd, L" and ++(0,0)");
-				commd = addStr(commd, L" .. ++(");
-				for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
-				i = addPoint(&commd, path, i);
-				commd = addChar(commd, ')');
+					int j = 0;
+					float cx = wcstof(cpoint, &tmpPoint);
+					for(j = 0; !iswdecimal(tmpPoint[j]) && tmpPoint[j] != '-'; j++);
+					float cy = wcstof(tmpPoint + j, &tmpPoint);
+					wchar_t buffer[32];
+					swprintf(buffer, 32, L"%.4f, %.4f", lastPos.x + 2 * cx / 3, lastPos.y + 2 * cy / 3);
+					commd = addStr(commd, buffer);
 				
-				for(j = wcslen(commd); j > 0 && commd[j] != '('; j--);
-				lastPos.x += wcstof(commd + j + 1, &tmpPoint);
-				lastPos.y += wcstof(tmpPoint + 2, &tmpPoint);
+					commd = addStr(commd, L") and (");
+					cpoint = realloc(cpoint, sizeof(wchar_t));
+					cpoint[0] = '\0';
+					for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
+					i = addPoint(&cpoint, path, i);
+
+					float fx = wcstof(cpoint, &tmpPoint);
+					for(j = 0; !iswdecimal(tmpPoint[j]) && tmpPoint[j] != '-'; j++);
+					float fy = wcstof(tmpPoint + j, &tmpPoint);
+					swprintf(buffer, 32, L"%.4f, %.4f", fx + lastPos.x + 2 * (cx - fx) / 3, fy + lastPos.y + 2 * (cy - fy) / 3);
+
+
+					lastControl.x = fx + lastPos.x + 2 * (cx - fx) / 3;
+					lastControl.y = fy + lastPos.y + 2 * (cy - fy) / 3;
+					lastPos.x += fx;
+					lastPos.y += fy;
+					lastControl.path = 'q';
+
+					commd = addStr(commd, buffer);
+					commd = addStr(commd, L") .. ++(");
+					commd = addStr(commd, cpoint);
+					free(cpoint);
+					commd = addChar(commd, ')');
+					for (; i < pLen && !(path[i] != ' ' && iswprint(path[i])); i++);
+					if(path[i] == '\0')
+					{
+						break;
+					}
+				}
+				
 				lastPos.path = 'q';
 			}
 			else if(path[i] == 'T')
 			{
-				commd = addStr(commd, L" .. controls (");
-				for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
-				int j = i;
+				for(; path[i] != '\0' && !iswdecimal(path[i]) && path[i] != '-'; i++);
+				while (!iswalpha(path[i]))
+				{
+					commd = addStr(commd, L" .. controls (");
+					for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
+					int j = i;
 				
-				float cx, cy;
-				wchar_t * point = NULL;
-				if(lastControl.path != '\0')
-				{
-					cx = 2 * lastPos.x - lastControl.x;
-					cy = 2 * lastPos.y - lastControl.y;
-					point = malloc(21 * sizeof(wchar_t));
-					swprintf(point, 64, L"%4.4f, %4.4f", cx, cy);
-				}
-				else
-				{
-					point = malloc(21 * sizeof(wchar_t));
-					swprintf(point, 64, L"%4.4f, %4.4f", lastPos.x, lastPos.y);
+					float cx, cy;
+					wchar_t * point = NULL;
+					if(lastControl.path == 'Q' || lastControl.path == 'q' || lastControl.path == 'T' || lastControl.path == 't')
+					{
+						cx = 2 * lastPos.x - lastControl.x;
+						cy = 2 * lastPos.y - lastControl.y;
+						point = malloc(32 * sizeof(wchar_t));
+						swprintf(point, 32, L"%.4f, %.4f", cx, cy);
+					}
+					else
+					{
+						point = malloc(32 * sizeof(wchar_t));
+						swprintf(point, 32, L"%.4f, %.4f", lastPos.x, lastPos.y);
+					}
+
+					commd = addStr(commd, point);
+					//free(point);
+
+					point = realloc(point, sizeof(wchar_t));
+					point[0] = '\0';
+					for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
+					i = addPoint(&point, path, i);
+
+					wchar_t buffer[32], *tmpPoint = NULL;
+					float fx = wcstof(point, &tmpPoint);
+					for(j = 0; !iswdecimal(tmpPoint[j]) && tmpPoint[j] != '-'; j++);
+					float fy = wcstof(tmpPoint + j, &tmpPoint);
+					free(point);
+
+					commd = addStr(commd, L") and (");
+					lastControl.x = cx + (fx - lastPos.x) / 3;
+					lastControl.y = cy + (fy - lastPos.y) / 3;
+					swprintf(buffer, 32, L"%.4f, %.4f", lastControl.x, lastControl.y);
+					commd = addStr(commd, buffer);
+					commd = addStr(commd, L") .. (");
+					lastControl.path = 'T';
+				
+					swprintf(buffer, 32, L"%.4f, %.4f", fx, fy);
+					lastPos.x = fx;
+					lastPos.y = fy;
+				
+					commd = addStr(commd, buffer);
+					commd = addChar(commd, ')');
+					for (; i < pLen && !(path[i] != ' ' && iswprint(path[i])); i++);
+					if(path[i] == '\0')
+					{
+						break;
+					}
 				}
 
-				commd = addStr(commd, point);
-				commd = addStr(commd, L") and (");
-				commd = addStr(commd, point);
-				commd = addStr(commd, L") .. (");
-				free(point);
-				i = addPoint(&commd, path, i);
-				commd = addChar(commd, ')');
-				
-				wchar_t* tmpPoint = NULL;
-				for(j = wcslen(commd); j > 0 && commd[j] != 'd'; j--);
-				lastControl.x = wcstof(commd + j + 3, &tmpPoint);
-				lastControl.y = wcstof(tmpPoint + 2, &tmpPoint);
-				lastControl.path = 'T';
-
-				j += 3;
-				for(int n = wcslen(commd); j < n && commd[j] != '('; j++);
-				lastPos.x = wcstof(commd + j + 1, &tmpPoint);
-				lastPos.y = wcstof(tmpPoint + 2, &tmpPoint);
 				lastPos.path = 'T';
 			}
 			else if(path[i] == 't')
 			{
-				commd = addStr(commd, L" .. controls (");
-				for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
-				int j = i;
+				for(; path[i] != '\0' && !iswdecimal(path[i]) && path[i] != '-'; i++);
+				while (!iswalpha(path[i]))
+				{
+					commd = addStr(commd, L" .. controls (");
+					for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
+					int j = i;
+					
+					float cx, cy;
+					wchar_t * point = NULL;
+					if(lastControl.path == 'Q' || lastControl.path == 'q' || lastControl.path == 'T' || lastControl.path == 't')
+					{
+						cx = 2 * lastPos.x - lastControl.x;
+						cy = 2 * lastPos.y - lastControl.y;
+						point = malloc(32 * sizeof(wchar_t));
+						swprintf(point, 32, L"%.4f, %.4f", cx, cy);
+					}
+					else
+					{
+						point = malloc(32 * sizeof(wchar_t));
+						swprintf(point, 32, L"%.4f, %.4f", lastPos.x, lastPos.y);
+					}
+
+					commd = addStr(commd, point);
 				
-				float cx, cy;
-				wchar_t * point = NULL;
-				if(lastControl.path != '\0')
-				{
-					cx = 2 * lastPos.x - lastControl.x;
-					cy = 2 * lastPos.y - lastControl.y;
-					point = malloc(21 * sizeof(wchar_t));
-					swprintf(point, 64, L"%4.4f, %4.4f", cx, cy);
-				}
-				else
-				{
-					point = malloc(21 * sizeof(wchar_t));
-					swprintf(point, 64, L"%4.4f, %4.4f", lastPos.x, lastPos.y);
+					point = realloc(point, sizeof(wchar_t));
+					point[0] = '\0';
+					for(; !iswdecimal(path[i]) && path[i] != '-'; i++);
+					i = addPoint(&point, path, i);
+
+					wchar_t buffer[32], *tmpPoint = NULL;
+					float fx = wcstof(point, &tmpPoint);
+					for(j = 0; !iswdecimal(tmpPoint[j]) && tmpPoint[j] != '-'; j++);
+					float fy = wcstof(tmpPoint + j, &tmpPoint);
+					free(point);
+
+					commd = addStr(commd, L") and (");
+					lastControl.x = cx + fx / 3;
+					lastControl.y = cy + fy / 3;
+					swprintf(buffer, 32, L"%.4f, %.4f", lastControl.x, lastControl.y);
+					commd = addStr(commd, buffer);
+					commd = addStr(commd, L") .. ++(");
+				
+					swprintf(buffer, 32, L"%.4f, %.4f", fx, fy);
+					lastPos.x += fx;
+					lastPos.y += fy;
+					lastControl.path = 't';
+				
+					commd = addStr(commd, buffer);
+					commd = addChar(commd, ')');
+					for (; i < pLen && !(path[i] != ' ' && iswprint(path[i])); i++);
+					if(path[i] == '\0')
+					{
+						break;
+					}
 				}
 
-				commd = addStr(commd, point);
-				commd = addStr(commd, L") and (");
-				commd = addStr(commd, point);
-				commd = addStr(commd, L") .. ++(");
-				free(point);
-				i = addPoint(&commd, path, i);
-				commd = addChar(commd, ')');
-				
-				wchar_t* tmpPoint = NULL;
-				for(j = wcslen(commd); j > 0 && commd[j] != 'd'; j--);
-				lastControl.x = wcstof(commd + j + 3, &tmpPoint);
-				lastControl.y = wcstof(tmpPoint + 2, &tmpPoint);
-				lastControl.path = 't';
-
-				j += 3;
-				for(int n = wcslen(commd); j < n && commd[j] != '('; j++);
-				lastPos.x += wcstof(commd + j + 1, &tmpPoint);
-				lastPos.y += wcstof(tmpPoint + 2, &tmpPoint);
 				lastPos.path = 't';
 			}/*
 			else if (path[i] == 'A')
@@ -1290,7 +1415,7 @@ int tikzPattern(LINE* line, FILE* outfile)
 	commd = addStr(commd, L"}{\\pgfpoint{0}{0}}{\\pgfpoint{");
 	d = getValue(line, L"width");
 	commd = addStr(commd, line->values[d]);
-	commd = addStr(commd, L"*0.026458cm}{");
+	commd = addStr(commd, L"*0.75pt}{");
 
 	int e = getValue(line, L"height");
 	if(line->values[e][0] == '-')
@@ -1308,11 +1433,11 @@ int tikzPattern(LINE* line, FILE* outfile)
 		commd = addStr(commd, line->values[e]);
 	}
 
-	commd = addStr(commd, L"*0.026458cm}}{\\pgfpoint{");
+	commd = addStr(commd, L"*0.75pt}}{\\pgfpoint{");
 	commd = addStr(commd, line->values[d]);
-	commd = addStr(commd, L"*0.026458cm}{");
+	commd = addStr(commd, L"*0.75pt}{");
 	commd = addStr(commd, line->values[e]);
-	commd = addStr(commd, L"*0.026458cm}}\n");
+	commd = addStr(commd, L"*0.75pt}}\n");
 	commd = addPadding(commd, globalPadding);
 	commd = addStr(commd, L"{\\begin{tikzpicture}[remember picture, overlay]");
 	globalPadding++;

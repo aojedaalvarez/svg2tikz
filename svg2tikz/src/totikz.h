@@ -18,6 +18,7 @@ typedef struct
 }
 POINT;
 
+static wchar_t inherit[12] = L"anchor=south";
 
 static inline int iswdecimal(wchar_t wchar) {
 	return iswdigit(wchar) || wchar == '.';
