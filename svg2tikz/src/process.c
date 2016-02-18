@@ -153,14 +153,46 @@ int processLine(LINE *line, FILE *infile, FILE *outfile) // 1px = 0.026458333333
 
 	if (wcscmp(line->tag, L"svg") == 0)
 	{
-		fwprintf(outfile, L"\\begin{tikzpicture}[x=0.026458cm, y=0.026458cm]\n");
+		if (svgCount > 0)
+		{
+			wchar_t *args = svgArguments(line), *tmpPadding = malloc(sizeof(wchar_t));
+			tmpPadding[0] = '\0';
+			tmpPadding = addPadding(tmpPadding, globalPadding);
+			if (args[0] == '\0')
+			{
+				fwprintf(outfile, L"%ls\\begin{scope}\n", tmpPadding);
+			}
+			else
+			{
+				fwprintf(outfile, L"%ls\\begin{scope}[%ls]\n", tmpPadding, args);
+			}
+			free(tmpPadding);
+			free(args);
+		}
+		else
+		{
+			fwprintf(outfile, L"\\begin{tikzpicture}[x=0.026458cm, y=0.026458cm]\n");
+		}
+		svgCount++;
 		globalPadding++;
 		return 0;
 	}
 	if (wcscmp(line->tag, L"/svg") == 0)
 	{
-		fwprintf(outfile, L"\\end{tikzpicture}");
 		globalPadding--;
+		if (svgCount == 1)
+		{
+			fwprintf(outfile, L"\\end{tikzpicture}");
+		}
+		else
+		{
+			wchar_t *tmpPadding = malloc(sizeof(wchar_t));
+			tmpPadding[0] = '\0';
+			tmpPadding = addPadding(tmpPadding, globalPadding);
+			fwprintf(outfile, L"%ls\\end{scope}\n", tmpPadding);
+			free(tmpPadding);
+		}
+		svgCount--;
 		return 0;
 	}
 	/*fwprintf(outfile, L"TAG: %ls(", line->tag);
@@ -179,6 +211,67 @@ int processLine(LINE *line, FILE *infile, FILE *outfile) // 1px = 0.026458333333
 	}*/
 	return 0;
 }
+
+wchar_t* svgArguments(LINE *line)
+{
+	float x = 0, y = 0, w = 0, h = 0, vx, vy, vw, vh;
+	wchar_t *tmpStr = NULL, *args = malloc(sizeof(wchar_t));
+	args[0] = '\0';
+	int d = getValue(line, L"x");
+	if (d != -1)
+	{
+		x = - wcstof(line->values[d], &tmpStr);
+	}
+	d = getValue(line, L"y");
+	if (d != -1)
+	{
+		y = wcstof(line->values[d], &tmpStr);
+	}
+
+	d = getValue(line, L"width");
+	if (d != -1)
+	{
+		w = wcstof(line->values[d], &tmpStr);
+	}
+	d = getValue(line, L"height");
+	if (d != -1)
+	{
+		h = wcstof(line->values[d], &tmpStr);
+	}
+
+	d = getValue(line, L"viewBox");
+	if (d != -1)
+	{
+		vx = - wcstof(line->values[d], &tmpStr);
+		int i = 0;
+		for (i = 0; !iswdecimal(tmpStr[i]) && tmpStr[i] != '-'; i++);
+		vy = wcstof(tmpStr + i, &tmpStr);
+		wchar_t buffer[16];
+		swprintf(buffer, 16, L"%.4f", vx * 0.75);
+		args = addStr(args, L"xshift=");
+		args = addStr(args, buffer);
+		swprintf(buffer, 16, L"%.4f", vy * 0.75);
+		args = addStr(args, L", yshift=");
+		args = addStr(args, buffer);
+		
+		
+		for (i = 0; !iswdecimal(tmpStr[i]) && tmpStr[i] != '-'; i++);
+		vw = wcstof(tmpStr + i, &tmpStr);
+		for (i = 0; !iswdecimal(tmpStr[i]) && tmpStr[i] != '-'; i++);
+		vh = wcstof(tmpStr + i, &tmpStr);
+		if (w > 0 && h > 0)
+		{
+			swprintf(buffer, 16, L"%.4f", w / vw);
+			args = addStr(args, L", xscale=");
+			args = addStr(args, buffer);
+			swprintf(buffer, 16, L"%.4f", h / vw);
+			args = addStr(args, L", yscale=");
+			args = addStr(args, buffer);
+		}	
+	}
+	return args;
+}
+
 
 void push(NODE** stack, wchar_t* opts)
 {

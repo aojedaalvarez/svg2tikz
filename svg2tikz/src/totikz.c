@@ -13,11 +13,15 @@
 wchar_t* addPadding(wchar_t* dest, int padding)
 {
 	//
+	wchar_t *tmpStr = malloc(sizeof(wchar_t));
+	tmpStr[0] = '\0';
 	for (int i = 0; i < padding; i++)
 	{
-		dest = addStr(dest, L"    ");
+		tmpStr = addStr(tmpStr, L"    ");
 	}
-	return dest;
+	tmpStr = addStr(tmpStr, dest);
+	free(dest);
+	return tmpStr;
 }
 
 wchar_t* addStr(wchar_t* dest, const wchar_t* src)
@@ -129,7 +133,7 @@ wchar_t* shapeOptions(wchar_t* args, NODE* stack, LINE* line, FILE* outfile)
 				buffer = addChar(buffer, line->values[d][i]);
 			}
 		}
-		buffer = addChar(buffer, '>');
+		buffer = addStr(buffer, L"\"\\>");
 
 		LINE* tmpLine = createLine(buffer);
 		tmpLine->content = NULL;
@@ -157,9 +161,6 @@ wchar_t* shapeOptions(wchar_t* args, NODE* stack, LINE* line, FILE* outfile)
 		}
 		if (line->values[d][0] == '#')
 		{
-			//wchar_t color[28] = L"";
-			//convertColor(color, line->values[d]);
-			//args = addStr(args, L"color=");
 			args = addStr(args, L"rgb");
 			args = addStr(args, convertColor(outfile, line->values[d]));
 		}
@@ -193,8 +194,6 @@ wchar_t* shapeOptions(wchar_t* args, NODE* stack, LINE* line, FILE* outfile)
 		args = addStr(args, L"fill=");
 		if (line->values[d][0] == '#')
 		{
-			//wchar_t color[28] = L"";
-			//convertColor(color, line->values[d]);
 			args = addStr(args, L"rgb");
 			args = addStr(args, convertColor(outfile, line->values[d]));
 		}
@@ -223,6 +222,16 @@ wchar_t* shapeOptions(wchar_t* args, NODE* stack, LINE* line, FILE* outfile)
 		args = addStr(args, L"fill opacity=");
 		args = addStr(args, line->values[d]);
 	}
+	d = getValue(line, L"stroke-opacity");
+	if (d != -1 && wcscmp(line->values[d], L"none") != 0)
+	{
+		if (wcslen(args) > 0)
+		{
+			args = addStr(args, L", ");
+		}
+		args = addStr(args, L"draw opacity=");
+		args = addStr(args, line->values[d]);
+	}
 	d = getValue(line, L"stroke-width");
 	if (d != -1)
 	{
@@ -236,6 +245,7 @@ wchar_t* shapeOptions(wchar_t* args, NODE* stack, LINE* line, FILE* outfile)
 		swprintf(buffer, 16, L"%.4f", wd);
 		args = addStr(args, buffer);
 	}
+	args = commonOptions(args, line);
 	return args;
 }
 
@@ -315,12 +325,96 @@ wchar_t* textOptions(wchar_t* args, NODE* stack, LINE* line)
 		swprintf(buffer, 16, L"%.4f", wd);
 		args = addStr(args, buffer);
 	}
+	args = commonOptions(args, line);
 	return args;
 }
 
-wchar_t * currentPos(wchar_t* path)
+wchar_t* commonOptions(wchar_t* args, LINE* line)
 {
-	return NULL;
+	int	d = getValue(line, L"transform");
+	if (d != -1)
+	{
+		wchar_t *transform = line->values[d];
+		while (wcslen(transform) > 0)
+		{
+			wchar_t type[16] = L"", value[64] = L"";
+			int i = 0, j = 0;
+			for (i = 0; transform[i] != '('; i++)
+			{
+				type[j++] = transform[i];
+			}
+			type[j] = '\0';
+			for (; !iswdecimal(transform[i]) && transform[i] != '-'; i++);
+			for (j = 0; transform[i] != ')'; i++)
+			{
+				value[j++] = transform[i];
+			}
+			value[j] = '\0';
+			for (; !iswalpha(transform[i]) && transform[i] != '\0'; i++);
+			transform += i;
+			if (wcscmp(type, L"translate") == 0)
+			{
+				if (wcslen(args) > 0)
+				{
+					args = addStr(args, L", ");
+				}
+				wchar_t *tmpStr = NULL, buffer[32];
+				args = addStr(args, L"shift=");
+				float xs = wcstof(value, &tmpStr), ys = 0;
+				for (j = 0; tmpStr[j] != '\0' && !iswdecimal(tmpStr[j]) && tmpStr[j] != '-'; j++);
+				if (wcslen(tmpStr + j) > 0)
+				{
+					ys = - wcstof(tmpStr + j, &tmpStr);
+				}
+				swprintf(buffer, 32, L"{(%.4f, %.4f)}", xs, ys);
+				args = addStr(args, buffer);
+			}
+			else if (wcscmp(type, L"rotate") == 0)
+			{
+				if (wcslen(args) > 0)
+				{
+					args = addStr(args, L", ");
+				}
+				wchar_t *tmpStr = NULL, buffer[64];
+				float angle = - wcstof(value, &tmpStr), xs = 0, ys = 0;
+				args = addStr(args, L"rotate around=");
+				for (j = 0; tmpStr[j] != '\0' && !iswdecimal(tmpStr[j]) && tmpStr[j] != '-'; j++);
+				if (wcslen(tmpStr + j) > 0)
+				{
+					xs = wcstof(tmpStr + j, &tmpStr);
+				}
+				for (j = 0; tmpStr[j] != '\0' && !iswdecimal(tmpStr[j]) && tmpStr[j] != '-'; j++);
+				if (wcslen(tmpStr + j) > 0)
+				{
+					ys = - wcstof(tmpStr + j, &tmpStr);
+				}
+				swprintf(buffer, 64, L"{%.2f:(%.4f, %.4f)}", angle, xs, ys);
+				args = addStr(args, buffer);
+			}
+			else if (wcscmp(type, L"scale") == 0)
+			{
+				if (wcslen(args) > 0)
+				{
+					args = addStr(args, L", ");
+				}
+				wchar_t *tmpStr = NULL, buffer[32];
+				float fs = wcstof(value, &tmpStr);
+				args = addStr(args, L"xscale=");
+				swprintf(buffer, 32, L"%.4f", fs);
+				args = addStr(args, buffer);
+
+				for (j = 0; tmpStr[j] != '\0' && !iswdecimal(tmpStr[j]) && tmpStr[j] != '-'; j++);
+				if (wcslen(tmpStr + j) > 0)
+				{
+					fs = wcstof(tmpStr + j, &tmpStr);
+					args = addStr(args, L", yscale=");
+					swprintf(buffer, 32, L"%.4f", fs);
+					args = addStr(args, buffer);
+				}
+			}
+		}
+	}
+	return args;
 }
 
 
@@ -1269,9 +1363,21 @@ int tikzEllipse(LINE* line, FILE* outfile)
 	if (d != -1 && e != -1)
 	{
 		commd = addStr(commd, L" (");
-		commd = addStr(commd, line->values[d]);
+		if (line->values[d][0] != '\0')
+		{
+			commd = addStr(commd, line->values[d]);	
+		}
+		else
+		{
+			commd = addChar(commd, '0');
+		}
 		commd = addStr(commd, L", ");
-		if (line->values[e][0] == '-')
+
+		if (line->values[e][0] == '\0')
+		{
+			commd = addChar(commd, '0');
+		}
+		else if (line->values[e][0] == '-')
 		{
 			wchar_t* tmpy = line->values[e] + 1;
 			commd = addStr(commd, tmpy);

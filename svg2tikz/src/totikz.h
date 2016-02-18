@@ -38,7 +38,7 @@ wchar_t* shapeOptions(wchar_t* args, NODE* glArgs, LINE* line, FILE* outfile);
 
 wchar_t* textOptions(wchar_t* args, NODE* glArgs, LINE* line);
 
-wchar_t * currentPos(wchar_t* path);
+wchar_t* commonOptions(wchar_t* args, LINE* line);
 
 int tikzPath(LINE* line, FILE* outfile);
 

@@ -31,6 +31,8 @@ typedef struct LIST
 	struct LIST* next;
 }
 LIST;
+
+static int svgCount = 0;
 #endif
 
 extern NODE* libraries;
@@ -62,3 +64,5 @@ int getValue(LINE* line, wchar_t* atribute);
 int freeLine(LINE* line);
 
 int processLine(LINE *line, FILE *infile, FILE *outfile);
+
+wchar_t* svgArguments(LINE *line);
