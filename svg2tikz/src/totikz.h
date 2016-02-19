@@ -1,14 +1,18 @@
 
 /*********************************************/
+
 #include <stdio.h>
 #include <wchar.h>
 #include "process.h"
+
+#define PADDING_SIZE 4
 
 extern NODE* globalArgs;
 extern NODE* textArgs;
 extern int globalPadding;
 extern LIST *typelist;
 extern NODE* colors;
+
 
 typedef struct 
 {
@@ -18,7 +22,9 @@ typedef struct
 }
 POINT;
 
+
 static wchar_t inherit[12] = L"anchor=south";
+
 
 static inline int iswdecimal(wchar_t wchar) {
 	return iswdigit(wchar) || wchar == '.';

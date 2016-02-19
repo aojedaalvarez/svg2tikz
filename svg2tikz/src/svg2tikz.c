@@ -20,12 +20,14 @@ FILE* openOutfile(char* filename);
 char* chagextension(char* filename, const char* extension);
 int xmlData(LINE* line);
 
+
 NODE* globalArgs = NULL;
 NODE* textArgs = NULL;
 NODE* colors = NULL;
 NODE* libraries = NULL;
 int globalPadding = 0;
 LIST *typelist = NULL;
+
 
 int main(int argc, char *argv[])
 {
@@ -69,9 +71,9 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	wchar_t c = fgetwc(infile);	
+	wchar_t c = fgetwc(infile);
 
-	while (c != WEOF)
+	while (!feof(infile))
 	{
 		if(c == '<')
 		{
@@ -119,10 +121,12 @@ int main(int argc, char *argv[])
 	}
 
 	// Free global variables
-	destroyList(typelist);
+	destroyNode(globalArgs);
+	destroyNode(textArgs);
 	destroyNode(colors);
 	destroyNode(libraries);
-
+	destroyList(typelist);
+	
 	// Close files
 	fclose(infile);
 	fclose(outfile);

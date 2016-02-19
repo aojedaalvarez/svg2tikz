@@ -1,10 +1,11 @@
-///////////////////////////////////////////////
 
-#include <wchar.h>
-
+/******************************************/
 
 #ifndef PROCESS_H
 #define PROCESS_H
+
+#include <wchar.h>
+
 
 typedef struct
 {
@@ -32,10 +33,11 @@ typedef struct LIST
 }
 LIST;
 
+
 static int svgCount = 0;
-#endif
 
 extern NODE* libraries;
+
 
 wchar_t* getArgument(LIST* list, wchar_t* id);
 
@@ -53,7 +55,7 @@ wchar_t* top(NODE* stack);
 
 int addNode(NODE** node, wchar_t* opts);
 
-int isNode(NODE* node, wchar_t* opts);
+_Bool isInNode(NODE* node, wchar_t* opts);
 
 int destroyNode(NODE* node);
 
@@ -66,3 +68,5 @@ int freeLine(LINE* line);
 int processLine(LINE *line, FILE *infile, FILE *outfile);
 
 wchar_t* svgArguments(LINE *line);
+
+#endif

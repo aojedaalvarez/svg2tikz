@@ -13,12 +13,12 @@
 wchar_t* addPadding(wchar_t* dest, int padding)
 {
 	//
-	wchar_t *tmpStr = malloc(sizeof(wchar_t));
-	tmpStr[0] = '\0';
-	for (int i = 0; i < padding; i++)
+	wchar_t *tmpStr = malloc((padding * PADDING_SIZE + 1) * sizeof(wchar_t));
+	for (int i = 0; i < padding * PADDING_SIZE; i++)
 	{
-		tmpStr = addStr(tmpStr, L"    ");
+		tmpStr[i] = ' ';
 	}
+	tmpStr[padding * PADDING_SIZE] = '\0';
 	tmpStr = addStr(tmpStr, dest);
 	free(dest);
 	return tmpStr;
@@ -27,8 +27,11 @@ wchar_t* addPadding(wchar_t* dest, int padding)
 wchar_t* addStr(wchar_t* dest, const wchar_t* src)
 {
 	int n = wcslen(dest), m = wcslen(src);
-	dest = realloc(dest, (n + m + 1) * sizeof(wchar_t));
-	wcscat(dest, src);
+	if (src != NULL && m > 0)
+	{
+		dest = realloc(dest, (n + m + 1) * sizeof(wchar_t));
+		wcscat(dest, src);
+	}
 	return dest;
 }
 
@@ -74,7 +77,7 @@ int addPoint(wchar_t** commd, const wchar_t* path, int i)
 wchar_t* convertColor(FILE* outfile, wchar_t* sColor)
 {
 	//
-	if(!isNode(colors, sColor + 1))
+	if(!isInNode(colors, sColor + 1))
 	{
 		int lenCor = (wcslen(sColor) - 1) / 3;
 		wchar_t *tmp = NULL, R[lenCor + 1], G[lenCor + 1], B[lenCor + 1];

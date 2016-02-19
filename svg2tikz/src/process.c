@@ -1,4 +1,5 @@
-////////////////////////////////////////////
+
+/***********************************************/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -121,7 +122,7 @@ int processLine(LINE *line, FILE *infile, FILE *outfile) // 1px = 0.026458333333
 	}
 	if (wcscmp(line->tag, L"pattern") == 0)  //page(1063) \usetikzlibrary{patterns}
 	{
-		if (!isNode(libraries, L"patterns"))
+		if (!isInNode(libraries, L"patterns"))
 		{
 			wchar_t *padding = malloc(sizeof(wchar_t));
 			padding[0] = '\0';
@@ -321,7 +322,7 @@ int addNode(NODE** node, wchar_t* opts)
 	return 0;
 }
 
-int isNode(NODE* node, wchar_t* opts)
+_Bool isInNode(NODE* node, wchar_t* opts)
 {
 	for (; node != NULL; node = node->next)
 	{
