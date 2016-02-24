@@ -13,14 +13,14 @@ CFLAGS = -std=c99
 EXE = ../svg2tikz
 
 # space-separated list of header files
-HDRS = process.h totikz.h
+HDRS = lines.h totikz.h
 
 # space-separated list of libraries, if any,
 # each of which should be prefixed with -l
 LIBS = -lm
 
 # space-separated list of source files
-SRCS = svg2tikz.c process.c totikz.c
+SRCS = svg2tikz.c lines.c totikz.c
 
 # automatically generated list of object files
 OBJS = $(SRCS:.c=.o)
@@ -36,3 +36,7 @@ $(OBJS): $(HDRS) Makefile
 # housekeeping
 clean:
 	rm -f core $(EXE) *.o
+
+# housekeeping
+clean_objects:
+	rm -f *.o
