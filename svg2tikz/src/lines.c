@@ -7,71 +7,8 @@
 #include <wchar.h>
 #include <wctype.h>
 #include "totikz.h"
-#include "process.h"
+#include "lines.h"
 
-
-wchar_t* getArgument(LIST* list, wchar_t* id)
-{
-	LIST* pos = list;
-	for (;pos != NULL; pos = pos->next)
-	{
-		if (wcscmp(pos->id, id) == 0)
-		{
-			return pos->argument;
-		}
-	}
-	return NULL;
-}
-
-int addArgument(LIST** list, wchar_t* id, wchar_t* argument)
-{
-	if (*list == NULL)
-	{
-		*list = malloc(sizeof(LIST));
-		(*list)->id = malloc((wcslen(id) + 1) * sizeof(wchar_t));
-		wcscpy((*list)->id, id);
-		(*list)->argument = malloc((wcslen(argument) + 1) * sizeof(wchar_t));
-		wcscpy((*list)->argument, argument);
-		(*list)->next = NULL;
-		return 0;
-	}
-	LIST* pos = *list;
-	for(; pos->next != NULL; pos = pos->next);
-	pos->next = malloc(sizeof(LIST));
-	pos->next->id = malloc((wcslen(id) + 1) * sizeof(wchar_t));
-	wcscpy(pos->next->id, id);
-	pos->next->argument = malloc((wcslen(argument) + 1) * sizeof(wchar_t));
-	wcscpy(pos->next->argument, argument);
-	pos->next->next = NULL;
-	return 0;
-}
-
-int argumentRenew(LIST* list, wchar_t* id, wchar_t* argument)
-{
-	for (; list != NULL; list = list->next)
-	{
-		if (wcscmp(list->id, id) == 0)
-		{
-			list->argument = realloc(list->argument, (wcslen(argument) + 1) * sizeof(wchar_t));
-			wcscpy(list->argument, argument);
-			return 0;
-		}
-	}
-	return -1;
-}
-
-int destroyList(LIST* list)
-{
-	while (list != NULL)
-	{
-		free(list->id);
-		free(list->argument);
-		LIST* tmp = list;
-		list = list->next;
-		free(tmp);
-	}
-	return 0;
-}
 
 int processLine(LINE *line, FILE *infile, FILE *outfile) // 1px = 0.02645833333333cm
 {
@@ -132,6 +69,7 @@ int processLine(LINE *line, FILE *infile, FILE *outfile) // 1px = 0.026458333333
 			addNode(&libraries, L"patterns");
 		}
 		tikzPattern(line, outfile);
+		push(&globalArgs, L"");
 		return 0;
 	}
 	if (wcscmp(line->tag, L"/pattern") == 0)
@@ -142,8 +80,7 @@ int processLine(LINE *line, FILE *infile, FILE *outfile) // 1px = 0.026458333333
 		tmp = addPadding(tmp, globalPadding);
 		fwprintf(outfile, L"%ls\\end{tikzpicture}}\n", tmp);
 		free(tmp);
-		destroyNode(colors);
-		colors = NULL;
+		pop(&globalArgs);
 		return 0;
 	}
 	if (wcscmp(line->tag, L"linearGradient") == 0)
@@ -176,6 +113,7 @@ int processLine(LINE *line, FILE *infile, FILE *outfile) // 1px = 0.026458333333
 		}
 		svgCount++;
 		globalPadding++;
+		push(&globalArgs, L"");
 		return 0;
 	}
 	if (wcscmp(line->tag, L"/svg") == 0)
@@ -194,6 +132,17 @@ int processLine(LINE *line, FILE *infile, FILE *outfile) // 1px = 0.026458333333
 			free(tmpPadding);
 		}
 		svgCount--;
+		pop(&globalArgs);
+		return 0;
+	}
+	if (wcscmp(line->tag, L"defs") == 0)
+	{
+		isInDefs = true;
+		return 0;
+	}
+	if (wcscmp(line->tag, L"/defs") == 0)
+	{
+		isInDefs = false;
 		return 0;
 	}
 	/*fwprintf(outfile, L"TAG: %ls(", line->tag);
@@ -279,6 +228,8 @@ void push(NODE** stack, wchar_t* opts)
 	NODE* node = malloc(sizeof(NODE));
 	node->opts = malloc((wcslen(opts) + 1) * sizeof(wchar_t));
 	wcscpy(node->opts, opts);
+	node->colors = NULL;
+	node->colorsCount = 0;
 	node->next = *stack;
 	*stack = node;
 }
@@ -290,6 +241,11 @@ void pop(NODE** stack)
 		NODE* tmp = *stack;
 		*stack = (*stack)->next;
 		free(tmp->opts);
+		for (int i = 0; i < tmp->colorsCount; i++)
+		{
+			free(tmp->colors[i]);
+		}
+		free(tmp->colors);
 		free(tmp);
 	}
 }
@@ -310,6 +266,8 @@ int addNode(NODE** node, wchar_t* opts)
 		*node = malloc(sizeof(NODE));
 		(*node)->opts = malloc((wcslen(opts) + 1) * sizeof(wchar_t));
 		wcscpy((*node)->opts, opts);
+		(*node)->colorsCount = 0;
+		(*node)->colors = NULL;
 		(*node)->next = NULL;
 		return 0;
 	}
@@ -318,8 +276,18 @@ int addNode(NODE** node, wchar_t* opts)
 	pos->next = malloc(sizeof(NODE));
 	pos->next->opts = malloc((wcslen(opts) + 1) * sizeof(wchar_t));
 	wcscpy(pos->next->opts, opts);
+	pos->next->colorsCount = 0;
+	pos->next->colors = NULL;
 	pos->next->next = NULL;
 	return 0;
+}
+
+int addColor(NODE* node, wchar_t *color)
+{
+	node->colors = realloc(node->colors, (node->colorsCount + 1) * sizeof(wchar_t*));
+	node->colors[node->colorsCount] = malloc((wcslen(color) + 1) * sizeof(wchar_t));
+	wcscpy(node->colors[node->colorsCount++], color);
+	return 0; 
 }
 
 _Bool isInNode(NODE* node, wchar_t* opts)
@@ -334,11 +302,34 @@ _Bool isInNode(NODE* node, wchar_t* opts)
 	return 0;
 }
 
+_Bool isColor(NODE* node, wchar_t* color)
+{
+	for (; node != NULL; node = node->next)
+	{
+		if (node->colors != NULL && node->colorsCount > 0)
+		{
+			for (int i = 0; i < node->colorsCount; i++)
+			{
+				if (wcscmp(node->colors[i], color) == 0)
+				{
+					return 1;
+				}
+			}
+		}
+	}
+	return 0;
+}
+
 int destroyNode(NODE* node)
 {
 	while (node != NULL)
 	{
 		free(node->opts);
+		for (int i = 0; i < node->colorsCount; i++)
+		{
+			free(node->colors[i]);
+		}
+		free(node->colors);
 		NODE* tmp = node;
 		node = node->next;
 		free(tmp);
@@ -457,5 +448,171 @@ int freeLine(LINE *line)
 	free(line->values);
 	free(line->content);
 	free(line);
+	return 0;
+}
+
+
+wchar_t* getArgument(LIST* list, wchar_t* id)
+{
+	LIST* pos = list;
+	for (;pos != NULL; pos = pos->next)
+	{
+		if (wcscmp(pos->id, id) == 0)
+		{
+			return pos->argument;
+		}
+	}
+	return NULL;
+}
+
+int addArgument(LIST** list, wchar_t* id, wchar_t* argument)
+{
+	if (*list == NULL)
+	{
+		*list = malloc(sizeof(LIST));
+		(*list)->id = malloc((wcslen(id) + 1) * sizeof(wchar_t));
+		wcscpy((*list)->id, id);
+		(*list)->argument = malloc((wcslen(argument) + 1) * sizeof(wchar_t));
+		wcscpy((*list)->argument, argument);
+		(*list)->next = NULL;
+		return 0;
+	}
+	LIST* pos = *list;
+	for(; pos->next != NULL; pos = pos->next);
+	pos->next = malloc(sizeof(LIST));
+	pos->next->id = malloc((wcslen(id) + 1) * sizeof(wchar_t));
+	wcscpy(pos->next->id, id);
+	pos->next->argument = malloc((wcslen(argument) + 1) * sizeof(wchar_t));
+	wcscpy(pos->next->argument, argument);
+	pos->next->next = NULL;
+	return 0;
+}
+
+int argumentRenew(LIST* list, wchar_t* id, wchar_t* argument)
+{
+	for (; list != NULL; list = list->next)
+	{
+		if (wcscmp(list->id, id) == 0)
+		{
+			list->argument = realloc(list->argument, (wcslen(argument) + 1) * sizeof(wchar_t));
+			wcscpy(list->argument, argument);
+			return 0;
+		}
+	}
+	return -1;
+}
+
+int destroyList(LIST* list)
+{
+	while (list != NULL)
+	{
+		free(list->id);
+		free(list->argument);
+		LIST* tmp = list;
+		list = list->next;
+		free(tmp);
+	}
+	return 0;
+}
+
+
+
+LINE** getLine(lineLIST* list, wchar_t* id)
+{
+	while (list != NULL)
+	{
+		if (wcscmp(list->id, id) == 0)
+		{
+			return list->lines;
+		}
+		list = list->next;
+	}
+	return NULL;
+}
+
+int addDefs(lineLIST** list, wchar_t* id, LINE* line)
+{
+	if (*list == NULL)
+	{
+		*list = malloc(sizeof(lineLIST));
+		(*list)->id = malloc((wcslen(id) + 1) * sizeof(wchar_t));
+		wcscpy((*list)->id, id);
+		(*list)->lines = malloc(sizeof(LINE*));
+		(*list)->lines[0] = line;
+		(*list)->linesCount = 1;
+		(*list)->next = NULL;
+		return 0;
+	}
+	else if (wcscmp((*list)->id, id) == 0)
+	{
+		(*list)->lines = realloc((*list)->lines, ((*list)->linesCount + 1) * sizeof(LINE*));
+		(*list)->lines[(*list)->linesCount++] = line;
+		return 0;
+	}
+	lineLIST *pos = *list;
+	while (pos->next != NULL)
+	{
+		if (wcscmp(pos->next->id, id) == 0)
+		{
+			pos->next->lines = realloc(pos->next->lines, (pos->next->linesCount + 1) * sizeof(LINE*));
+			pos->next->lines[pos->next->linesCount++] = line;
+			return 0;
+		}
+		pos = pos->next;
+	}
+	pos->next = malloc(sizeof(lineLIST));
+	pos->next->id = malloc((wcslen(id) + 1) * sizeof(wchar_t));
+	wcscpy(pos->next->id, id);
+	pos->next->lines = malloc(sizeof(LINE*));
+	pos->next->lines[0] = line;
+	pos->next->linesCount = 1;
+	pos->next->next = NULL;
+	return 0;
+}
+
+int addLine(lineLIST* list, LINE *line)
+{
+	if (list != NULL)
+	{
+		for (; list->next != NULL; list = list->next);
+		list->lines = realloc(list->lines, (list->linesCount + 1) * sizeof(LINE*));
+		list->lines[list->linesCount++] = line;
+		return 0;
+	}
+	return -1;
+}
+
+/*int addAtributes(lineLIST* list, wchar_t* id, wchar_t** atributes, int atribc)
+{
+	while (list != NULL)
+	{
+		if (wcscmp(list->id, id) == 0)
+		{
+			list->line->atributes = realloc(list->line->atributes, list->line->atribc + atribc);
+			for (int i = 0; i < atribc; i++)
+			{
+				wcscpy(list->line->atributes[list->line->atribc + i], atributes[i]);  
+			}
+			list->line->atribc += atribc;
+			return 0;
+		}
+	}
+	return -1;
+}*/
+
+int destroyLineList(lineLIST* list)
+{
+	while (list != NULL)
+	{
+		lineLIST* tmp = list->next;
+		free(list->id);
+		for (int i = 0; i < list->linesCount; i++)
+		{
+			freeLine(list->lines[i]);
+		}
+		free(list->lines);
+		free(list);
+		list = tmp;
+	}
 	return 0;
 }

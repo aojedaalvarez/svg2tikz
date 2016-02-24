@@ -6,13 +6,11 @@
 #include <wchar.h>
 #include <wctype.h>
 #include <math.h>
-#include "process.h"
 #include "totikz.h"
 
 
 wchar_t* addPadding(wchar_t* dest, int padding)
 {
-	//
 	wchar_t *tmpStr = malloc((padding * PADDING_SIZE + 1) * sizeof(wchar_t));
 	for (int i = 0; i < padding * PADDING_SIZE; i++)
 	{
@@ -77,7 +75,7 @@ int addPoint(wchar_t** commd, const wchar_t* path, int i)
 wchar_t* convertColor(FILE* outfile, wchar_t* sColor)
 {
 	//
-	if(!isInNode(colors, sColor + 1))
+	if(!isColor(globalArgs, sColor + 1))
 	{
 		int lenCor = (wcslen(sColor) - 1) / 3;
 		wchar_t *tmp = NULL, R[lenCor + 1], G[lenCor + 1], B[lenCor + 1];
@@ -96,7 +94,7 @@ wchar_t* convertColor(FILE* outfile, wchar_t* sColor)
 		padding = addPadding(padding, globalPadding);
 		fwprintf(outfile, L"%ls\\definecolor{rgb%ls}{RGB}{%d, %d, %d}\n", padding, sColor + 1, r, g, b);
 		free(padding);
-		addNode(&colors, sColor + 1);
+		addColor(globalArgs, sColor + 1);
 	}
 	return sColor + 1;
 } 
@@ -1425,18 +1423,57 @@ int tikzEllipse(LINE* line, FILE* outfile)
 
 int tikzG(LINE* line, FILE* outfile)
 {
-	wchar_t* args = NULL;
+	wchar_t *commd = malloc(sizeof(wchar_t)), *args = NULL;
+	commd[0] = '\0';
+	commd = addPadding(commd, globalPadding);
+	commd = addStr(commd, L"\\begin{scope}");
+
+	int d = getValue(line, L"transform");
+	if (d != -1)
+	{
+		LINE *tmpLine = malloc(sizeof(LINE));
+		tmpLine->tag = NULL;
+		tmpLine->atributes = malloc(sizeof(wchar_t*));
+		tmpLine->atributes[0] = line->atributes[d];
+		tmpLine->values = malloc(sizeof(wchar_t*));
+		tmpLine->values[0] = line->values[d];
+		tmpLine->atribc = 1;
+		tmpLine->content = NULL;
+		args = shapeOptions(args, NULL, line, outfile);
+		if (wcslen(args) > 0)
+		{
+			commd = addChar(commd, '[');
+			commd = addStr(commd, args);
+			commd = addChar(commd, ']');
+		}
+		free(args);
+		args = NULL;
+		free(tmpLine->atributes);
+		free(tmpLine->values);
+		free(tmpLine);
+		line->atributes[d][0] = '\0';
+	}
 
 	args = shapeOptions(args, NULL, line, outfile);
 	push(&globalArgs, args);
 	
 	free(args);
+	fwprintf(outfile, L"%ls\n", commd);
+	globalPadding++;
+	free(commd);
 	return 0;
 }
 
 int tikzCloseG(LINE* line, FILE* outfile)
 {
 	pop(&globalArgs);
+	globalPadding--;
+	wchar_t *commd = malloc(sizeof(wchar_t));
+	commd[0] = '\0';
+	commd = addPadding(commd, globalPadding);
+	commd = addStr(commd, L"\\end{scope}");
+	fwprintf(outfile, L"%ls\n", commd);
+	free(commd);
 	return 0;
 }
 

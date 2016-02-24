@@ -8,30 +8,38 @@
 #include <wctype.h>
 #include <unistd.h>
 #include <locale.h>
-#include "process.h"
+#include <errno.h>
+#include <signal.h>
+#include "lines.h"
 
-
-#define false 0
-#define true !false
 
 
 FILE* openInfile(char* filename);
-FILE* openOutfile(char* filename);
-char* chagextension(char* filename, const char* extension);
+FILE* openOutfile(char* filename, char* infile);
+_Bool isValidFileName(char* filename);
+char* chageExtension(char* filename, const char* extension);
 int xmlData(LINE* line);
+void breakSignal(int signal);
+void freeGlobals();
 
 
 NODE* globalArgs = NULL;
 NODE* textArgs = NULL;
-NODE* colors = NULL;
 NODE* libraries = NULL;
 int globalPadding = 0;
 LIST *typelist = NULL;
+lineLIST* defsList = NULL;
+_Bool isInDefs = false;
+
+FILE *infile = NULL, *outfile = NULL;
 
 
+/*********************/
+/*** Main function ***/
+/*********************/
 int main(int argc, char *argv[])
 {
-	FILE *infile, *outfile;
+	signal(SIGINT, breakSignal);
 	
 	if(argc == 2)
 	{
@@ -44,8 +52,8 @@ int main(int argc, char *argv[])
 		{
 			char exts[] = "tikz", fname[strlen(argv[1]) + strlen(exts) + 6];
 			strcpy(fname, argv[1]);
-			chagextension(fname, exts);
-			outfile = openOutfile(fname);
+			chageExtension(fname, exts);
+			outfile = openOutfile(fname, argv[1]);
 		}
 	}
 	else if(argc == 3)
@@ -57,7 +65,7 @@ int main(int argc, char *argv[])
 		}
 		else
 		{
-			outfile = openOutfile(argv[2]);
+			outfile = openOutfile(argv[2], argv[1]);
 		}
 	}
 	else
@@ -68,9 +76,11 @@ int main(int argc, char *argv[])
 	}
 	if (outfile == NULL)
 	{
+		fclose(infile);
 		return 1;
 	}
 
+	fwide(infile, 1);
 	wchar_t c = fgetwc(infile);
 
 	while (!feof(infile))
@@ -111,8 +121,30 @@ int main(int argc, char *argv[])
 			{
 				xmlData(line);
 			}
-			processLine(line, infile, outfile);
-			freeLine(line);
+			if (isInDefs && wcscmp(line->tag, L"/defs") != 0)
+			{
+				int haveId = getValue(line, L"id");
+				if (haveId != -1)
+				{
+					addDefs(&defsList, line->values[haveId], line);
+				}
+				else
+				{
+					addLine(defsList, line);
+				}
+			}
+			else
+			{
+				processLine(line, infile, outfile);
+				freeLine(line);
+			}
+		}
+		else if (ferror(infile))
+		{
+			//ungetwc(c, infile);
+			//fseek(infile, ftell(infile) + 4, SEEK_SET);
+			printf("read errno=%d\n", errno);
+			break;
 		}
 		else
 		{
@@ -120,17 +152,31 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	freeGlobals();
+	
+	return 0;
+}
+
+
+void breakSignal(int signal)
+{
+	freeGlobals();
+	exit(0);
+}
+
+
+inline void freeGlobals()
+{
 	// Free global variables
 	destroyNode(globalArgs);
 	destroyNode(textArgs);
-	destroyNode(colors);
 	destroyNode(libraries);
 	destroyList(typelist);
+	destroyLineList(defsList);
 	
 	// Close files
 	fclose(infile);
 	fclose(outfile);
-	return 0;
 }
 
 
@@ -165,26 +211,69 @@ FILE* openInfile(char* filename)
 /**********************************/
 /*** Open espesifed output file ***/
 /**********************************/
-FILE* openOutfile(char* filename)
+FILE* openOutfile(char* filename, char* infile)
 {
+	char buffer[256] = "";
 	if (access(filename, F_OK) == 0)
 	{
-		printf("The file %s exist, do you want to override? (y/n)\n", filename);
+		printf("The file %s exist (o=override/r=rename/q=quit)\n", filename);
+		char c = getchar();
+			
 		while (true)
 		{
-			char c = getchar();
-			if (c == 'n')
+			if (c == 'q')
 			{
 				return NULL;
 			}
-			else if (c == 'y')
+			else if (c == 'o')
 			{
 				if(access(filename, W_OK) == -1)
 				{
-					printf("No access to file %s\n", filename);
-					return NULL;
+					printf("No access to file %s (r=rename/q=quit)\n", filename);
+					c = getchar();
+					continue;
 				}
-				break;
+				else
+				{
+					break;
+				}
+			}
+			else if (c == 'r')
+			{
+				buffer[0] = '\0';
+				while (!isValidFileName(buffer) || strcmp(buffer, infile) == 0)
+				{
+					//for (int i = fgetc(stdin); i != EOF; i = fgetc(stdin));
+					printf("\rEnter new file name: ");
+					int in, n = 0;
+					while ((in = fgetc(stdin)) != '\n' && in != EOF && n < 256)
+					{
+						buffer[n++] = in;
+					}
+					buffer[n] = '\0';
+					if (strcmp(buffer, infile) == 0)
+					{
+						printf("Name can't coincide with input file\n");
+					}
+				}
+
+				filename = buffer;
+				if (access(filename, F_OK) == 0)
+				{
+					printf("The file %s exist (o=override/r=rename/q=quit)\n", filename);
+					c = getchar();
+					continue;
+				}
+				else
+				{
+					break;
+				}
+			}
+			else
+			{
+				printf("Incorret option (o=override/r=rename/q=quit)\n");
+				c = getchar();
+				continue;
 			}
 		}
 	}
@@ -202,20 +291,29 @@ FILE* openOutfile(char* filename)
 }
 
 
+/*************************************/
+/*** Comprove is filename is valid ***/
+/*************************************/
+_Bool isValidFileName(char* filename)
+{
+	return strlen(filename) > 0;
+}
+
+
 /**************************************************/
 /*** Generate filename with especifed extension ***/
 /**************************************************/
-char* chagextension(char* filename, const char* extension)
+char* chageExtension(char* filename, const char* extension)
 {
-	char* extind = strrchr(filename, '.');//, *last = strchr(filename, '\0');
-	//printf("%s\n", extind + sizeof(char));
-	if (strcmp(extind + sizeof(char), extension) == 0)
+	char* extind = strrchr(filename, '.');
+
+	if (extind != NULL && strcmp(extind + 1, extension) == 0)
 	{
 		*extind = '\0';
 		sprintf(filename, "%s_copy.%s", filename, extension);
 		return filename;
 	}
-	if (extind != NULL)
+	else if (extind != NULL)
 	{
 		*extind = '\0';
 	}

@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 #include <wchar.h>
-#include "process.h"
+#include "lines.h"
 
 #define PADDING_SIZE 4
 
@@ -11,7 +11,7 @@ extern NODE* globalArgs;
 extern NODE* textArgs;
 extern int globalPadding;
 extern LIST *typelist;
-extern NODE* colors;
+extern lineLIST* defsList;
 
 
 typedef struct 
